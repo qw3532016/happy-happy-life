@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>NYC Culture Map · World Cup 2026</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #1A3A6B; --red: #C0392B; --gold: #E8A020;
+    --dark: #0f1923; --panel: #1c2a38; --border: #2e4055;
+    --text: #FAF7F0; --muted: #5a7a99;
+  }
+  body { font-family: system-ui, -apple-system, sans-serif; background: var(--dark); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+header { background: var(–blue); border-bottom: 3px solid var(–gold); padding: 0 16px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+header h1 { font-size: 15px; font-weight: 800; letter-spacing: 1px; }
+header span { font-size: 10px; color: var(–gold); letter-spacing: 1px; text-transform: uppercase; }
+
+.tabs { display: flex; background: #0a1218; border-bottom: 1px solid var(–border); flex-shrink: 0; }
+.tab { flex: 1; padding: 10px 0; font-size: 12px; font-weight: 600; cursor: pointer; background: none; border: none; border-bottom: 2px solid transparent; color: var(–muted); }
+.tab.active { border-bottom-color: var(–gold); color: var(–gold); }
+
+.view { display: none; height: 100%; flex-direction: column; }
+.view.active { display: flex; }
+
+/* List */
+.search-wrap { padding: 10px 12px; border-bottom: 1px solid var(–border); flex-shrink: 0; }
+.search-wrap input { width: 100%; background: var(–panel); border: 1px solid var(–border); border-radius: 8px; color: var(–text); padding: 8px 12px; font-size: 14px; outline: none; }
+.search-wrap input:focus { border-color: var(–gold); }
+.count { padding: 5px 16px; font-size: 11px; color: var(–muted); border-bottom: 1px solid var(–border); flex-shrink: 0; }
+.list-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.inst-item { padding: 11px 16px; cursor: pointer; border-left: 3px solid transparent; display: flex; align-items: center; gap: 10px; transition: background 0.1s; }
+.inst-item:active, .inst-item.active { background: var(–panel); border-left-color: var(–red); }
+.inst-emoji { font-size: 18px; flex-shrink: 0; }
+.inst-name { font-size: 13px; font-weight: 500; line-height: 1.3; }
+.inst-borough { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px; }
+.inst-arrow { color: var(–border); font-size: 16px; margin-left: auto; }
+
+/* Map */
+#map { flex: 1; width: 100%; }
+
+/* Detail */
+.detail-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.back-btn { display: flex; align-items: center; gap: 6px; padding: 12px 16px; cursor: pointer; color: var(–muted); font-size: 13px; background: none; border: none; border-bottom: 1px solid var(–border); width: 100%; text-align: left; }
+.detail-hero { padding: 24px 20px 20px; border-bottom-width: 2px; border-bottom-style: solid; }
+.detail-emoji { font-size: 40px; margin-bottom: 8px; }
+.detail-borough-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+.detail-title { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.detail-body { padding: 20px; }
+.detail-desc { font-size: 14px; line-height: 1.75; color: #a8bfcf; }
+.loading { display: flex; align-items: center; gap: 8px; color: var(–muted); font-size: 13px; }
+.spinner { width: 14px; height: 14px; border: 2px solid var(–border); border-top-color: var(–gold); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+.maps-link { display: inline-block; margin-top: 16px; padding: 10px 18px; background: var(–red); color: #fff; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; }
+.more-section { margin-top: 28px; border-top: 1px solid var(–border); padding-top: 20px; }
+.more-label { font-size: 11px; color: var(–muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; }
+.more-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(–border); cursor: pointer; }
+.more-item-emoji { font-size: 16px; }
+.more-item-name { font-size: 13px; color: #a8bfcf; }
+
+.empty-state { padding: 24px; color: var(–muted); font-size: 14px; }
+.stripe { height: 4px; background: linear-gradient(90deg, var(–blue), var(–red), var(–gold), var(–blue)); flex-shrink: 0; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+</head>
+<body>
+
+<header>
+  <h1>NYC CULTURE MAP</h1>
+  <span>World Cup 2026</span>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('list')">📋 List</button>
+  <button class="tab" onclick="switchTab('map')">🗺️ Map</button>
+  <button class="tab" onclick="switchTab('detail')">🏛️ Detail</button>
+</div>
+
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+
+  <!-- LIST VIEW -->
+
+  <div id="view-list" class="view active">
+    <div class="search-wrap">
+      <input type="text" id="searchBox" placeholder="Search by name or borough…" oninput="filterList()">
+    </div>
+    <div class="count" id="countLabel"></div>
+    <div class="list-scroll" id="instList"></div>
+  </div>
+
+  <!-- MAP VIEW -->
+
+  <div id="view-map" class="view" style="display:none;flex:1;">
+    <div id="map"></div>
+  </div>
+
+  <!-- DETAIL VIEW -->
+
+  <div id="view-detail" class="view" style="display:none;">
+    <div class="detail-scroll">
+      <button class="back-btn" onclick="switchTab('list')">← Back to list</button>
+      <div id="detailContent" class="empty-state">Select an institution from the list to see details.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="stripe"></div>
+
+<script>
+const BOROUGH_COLORS = {
+  "Manhattan": "#E05252",
+  "Brooklyn": "#4A90D9",
+  "Queens": "#50B878",
+  "Bronx": "#E8A020",
+  "Staten Island": "#A855F7",
+  "New Jersey": "#888888"
+};
+
+const INSTITUTIONS = [
+  { name: "Alice Austen House", lat: 40.6151, lng: -74.0763, borough: "Staten Island", emoji: "🏛️" },
+  { name: "American Folk Art Museum", lat: 40.7731, lng: -73.9812, borough: "Manhattan", emoji: "🎨" },
+  { name: "American Museum of Natural History", lat: 40.7813, lng: -73.9740, borough: "Manhattan", emoji: "🦕" },
+  { name: "Arab-American Family Support Center", lat: 40.6892, lng: -73.9906, borough: "Brooklyn", emoji: "🤝" },
+  { name: "Artifacts Movie Archive Inc.", lat: 40.7128, lng: -74.0060, borough: "Manhattan", emoji: "🎬" },
+  { name: "Asia Art Archive in America", lat: 40.7230, lng: -73.9983, borough: "Manhattan", emoji: "🏮" },
+  { name: "Asphalt Green", lat: 40.7771, lng: -73.9428, borough: "Manhattan", emoji: "🌿" },
+  { name: "BRIC Arts Media", lat: 40.6883, lng: -73.9827, borough: "Brooklyn", emoji: "📡" },
+  { name: "Bronx Arts Ensemble", lat: 40.8448, lng: -73.8648, borough: "Bronx", emoji: "🎻" },
+  { name: "Bronx Children's Museum", lat: 40.8168, lng: -73.9198, borough: "Bronx", emoji: "🧒" },
+  { name: "Bronx Music Hall", lat: 40.8174, lng: -73.9189, borough: "Bronx", emoji: "🎵" },
+  { name: "Bronx River Alliance", lat: 40.8200, lng: -73.8900, borough: "Bronx", emoji: "🌊" },
+  { name: "Bronx River Art Center", lat: 40.8224, lng: -73.8888, borough: "Bronx", emoji: "🖼️" },
+  { name: "Bronx Zoo", lat: 40.8506, lng: -73.8769, borough: "Bronx", emoji: "🦁" },
+  { name: "BronxArtSpace Inc.", lat: 40.8295, lng: -73.9108, borough: "Bronx", emoji: "🎭" },
+  { name: "Brooklyn Academy of Music", lat: 40.6859, lng: -73.9776, borough: "Brooklyn", emoji: "🎶" },
+  { name: "Brooklyn Botanic Garden", lat: 40.6699, lng: -73.9637, borough: "Brooklyn", emoji: "🌸" },
+  { name: "Brooklyn Bridge Park", lat: 40.7026, lng: -73.9969, borough: "Brooklyn", emoji: "🌉" },
+  { name: "Brooklyn Children's Museum", lat: 40.6736, lng: -73.9442, borough: "Brooklyn", emoji: "🧒" },
+  { name: "Brooklyn Museum", lat: 40.6712, lng: -73.9636, borough: "Brooklyn", emoji: "🏛️" },
+  { name: "Brooklyn Public Library", lat: 40.6725, lng: -73.9686, borough: "Brooklyn", emoji: "📚" },
+  { name: "BrooklynONE productions", lat: 40.6892, lng: -73.9750, borough: "Brooklyn", emoji: "🎬" },
+  { name: "Caribbean American Repertory Theatre", lat: 40.6785, lng: -73.9442, borough: "Brooklyn", emoji: "🎭" },
+  { name: "Caribbean Cultural Center African Diaspora Institute", lat: 40.7614, lng: -73.9776, borough: "Manhattan", emoji: "🌍" },
+  { name: "Carnegie Hall", lat: 40.7651, lng: -73.9800, borough: "Manhattan", emoji: "🎹" },
+  { name: "Chelsea Music Festival", lat: 40.7465, lng: -74.0014, borough: "Manhattan", emoji: "🎵" },
+  { name: "Children's Museum of Manhattan", lat: 40.7815, lng: -73.9822, borough: "Manhattan", emoji: "🧒" },
+  { name: "Columbus Avenue BID", lat: 40.7807, lng: -73.9807, borough: "Manhattan", emoji: "🏙️" },
+  { name: "Culture Lab LIC", lat: 40.7441, lng: -73.9487, borough: "Queens", emoji: "🔬" },
+  { name: "Cypress Hills Fulton BID", lat: 40.6776, lng: -73.8874, borough: "Brooklyn", emoji: "🏘️" },
+  { name: "East Harlem Council for Human Services", lat: 40.7957, lng: -73.9378, borough: "Manhattan", emoji: "❤️" },
+  { name: "El Museo del Barrio", lat: 40.7935, lng: -73.9514, borough: "Manhattan", emoji: "🎨" },
+  { name: "En Garde Arts", lat: 40.7128, lng: -74.0100, borough: "Manhattan", emoji: "⚔️" },
+  { name: "Fifth Avenue Committee", lat: 40.6776, lng: -73.9894, borough: "Brooklyn", emoji: "🏙️" },
+  { name: "Flatbush Central", lat: 40.6426, lng: -73.9507, borough: "Brooklyn", emoji: "🏘️" },
+  { name: "Foundation for New American Art", lat: 40.7200, lng: -74.0000, borough: "Manhattan", emoji: "🖼️" },
+  { name: "Fourth Arts Block (FABnyc)", lat: 40.7261, lng: -73.9869, borough: "Manhattan", emoji: "🎭" },
+  { name: "Franklin Furnace", lat: 40.6959, lng: -73.9870, borough: "Brooklyn", emoji: "🔥" },
+  { name: "Fraunces Tavern® Museum", lat: 40.7036, lng: -74.0115, borough: "Manhattan", emoji: "🍺" },
+  { name: "Friends of Argentine Tango", lat: 40.7306, lng: -73.9866, borough: "Manhattan", emoji: "💃" },
+  { name: "Glow Cultural Center", lat: 40.6892, lng: -73.9442, borough: "Brooklyn", emoji: "✨" },
+  { name: "Gotham Football Club", lat: 40.7282, lng: -74.0776, borough: "New Jersey", emoji: "⚽" },
+  { name: "Haiti Cultural Exchange", lat: 40.6712, lng: -73.9506, borough: "Brooklyn", emoji: "🌺" },
+  { name: "Harlem Film House", lat: 40.8116, lng: -73.9465, borough: "Manhattan", emoji: "🎬" },
+  { name: "HERE Arts Center", lat: 40.7261, lng: -74.0024, borough: "Manhattan", emoji: "🎭" },
+  { name: "Hispanic Society Museum and Library", lat: 40.8402, lng: -73.9411, borough: "Manhattan", emoji: "📜" },
+  { name: "Historic Richmond Town", lat: 40.5707, lng: -74.1449, borough: "Staten Island", emoji: "🏡" },
+  { name: "I AM CARIBBEING/Little Caribbean NYC", lat: 40.6472, lng: -73.9506, borough: "Brooklyn", emoji: "🌴" },
+  { name: "International Center of Photography", lat: 40.7561, lng: -73.9875, borough: "Manhattan", emoji: "📷" },
+  { name: "Jamaica Center for Arts and Learning", lat: 40.7023, lng: -73.8027, borough: "Queens", emoji: "🎓" },
+  { name: "Kensington Cultural Council", lat: 40.6412, lng: -73.9726, borough: "Brooklyn", emoji: "🏘️" },
+  { name: "King Manor Museum", lat: 40.7023, lng: -73.8100, borough: "Queens", emoji: "👑" },
+  { name: "Korean Community Services", lat: 40.7570, lng: -73.9880, borough: "Manhattan", emoji: "🤝" },
+  { name: "La Colmena NYC", lat: 40.6300, lng: -74.1150, borough: "Staten Island", emoji: "🐝" },
+  { name: "La Victoria Foundation", lat: 40.7831, lng: -73.9478, borough: "Manhattan", emoji: "🏆" },
+  { name: "LaGuardia Performing Arts Center", lat: 40.7453, lng: -73.9444, borough: "Queens", emoji: "🎭" },
+  { name: "LES Ecology Center", lat: 40.7155, lng: -73.9818, borough: "Manhattan", emoji: "♻️" },
+  { name: "Leslie-Lohman Museum of Art", lat: 40.7260, lng: -74.0031, borough: "Manhattan", emoji: "🌈" },
+  { name: "Lewis Latimer House", lat: 40.7606, lng: -73.8347, borough: "Queens", emoji: "💡" },
+  { name: "Lincoln Center for the Performing Arts", lat: 40.7725, lng: -73.9835, borough: "Manhattan", emoji: "🎼" },
+  { name: "Long Island City Partnership", lat: 40.7482, lng: -73.9393, borough: "Queens", emoji: "🏙️" },
+  { name: "Louis Armstrong House Museum", lat: 40.7550, lng: -73.8605, borough: "Queens", emoji: "🎺" },
+  { name: "Make the Road NY", lat: 40.7006, lng: -73.8887, borough: "Queens", emoji: "🛤️" },
+  { name: "Mark Morris Dance Group", lat: 40.6883, lng: -73.9749, borough: "Brooklyn", emoji: "💃" },
+  { name: "MoMA PS1", lat: 40.7454, lng: -73.9459, borough: "Queens", emoji: "🖼️" },
+  { name: "Museum of Arts and Design", lat: 40.7670, lng: -73.9828, borough: "Manhattan", emoji: "✂️" },
+  { name: "Museum of Chinese in America", lat: 40.7168, lng: -73.9988, borough: "Manhattan", emoji: "🏮" },
+  { name: "Museum of Contemporary African Diasporan Art", lat: 40.6859, lng: -73.9717, borough: "Brooklyn", emoji: "🌍" },
+  { name: "Museum of Jewish Heritage", lat: 40.7077, lng: -74.0163, borough: "Manhattan", emoji: "✡️" },
+  { name: "Museum of the City of New York", lat: 40.7922, lng: -73.9518, borough: "Manhattan", emoji: "🗽" },
+  { name: "Museum of the Moving Image", lat: 40.7567, lng: -73.9268, borough: "Queens", emoji: "🎞️" },
+  { name: "National Ghana Parade Council", lat: 40.7860, lng: -73.9500, borough: "Manhattan", emoji: "🇬🇭" },
+  { name: "New Victory Theater", lat: 40.7569, lng: -73.9892, borough: "Manhattan", emoji: "🎭" },
+  { name: "New York African Chorus Ensemble", lat: 40.7840, lng: -73.9460, borough: "Manhattan", emoji: "🎵" },
+  { name: "New York Botanical Garden", lat: 40.8628, lng: -73.8771, borough: "Bronx", emoji: "🌺" },
+  { name: "New York Hall of Science", lat: 40.7466, lng: -73.8462, borough: "Queens", emoji: "🔭" },
+  { name: "New York Transit Museum", lat: 40.6900, lng: -73.9900, borough: "Brooklyn", emoji: "🚇" },
+  { name: "NYC Parks", lat: 40.7282, lng: -73.9942, borough: "Manhattan", emoji: "🌳" },
+  { name: "Paley Center for Media", lat: 40.7614, lng: -73.9751, borough: "Manhattan", emoji: "📺" },
+  { name: "PortSide NewYork", lat: 40.6826, lng: -74.0179, borough: "Brooklyn", emoji: "⚓" },
+  { name: "Pregones / Puerto Rican Traveling Theater", lat: 40.8175, lng: -73.9222, borough: "Bronx", emoji: "🎭" },
+  { name: "Prospect Park Alliance", lat: 40.6602, lng: -73.9690, borough: "Brooklyn", emoji: "🌳" },
+  { name: "Queens Botanical Garden", lat: 40.7454, lng: -73.8357, borough: "Queens", emoji: "🌷" },
+  { name: "Queens Museum", lat: 40.7463, lng: -73.8477, borough: "Queens", emoji: "🏛️" },
+  { name: "Queens Public Library", lat: 40.7023, lng: -73.7972, borough: "Queens", emoji: "📚" },
+  { name: "Queens Theatre", lat: 40.7451, lng: -73.8435, borough: "Queens", emoji: "🎭" },
+  { name: "Queensboro Dance Festival", lat: 40.7500, lng: -73.9380, borough: "Queens", emoji: "💃" },
+  { name: "Ridgewood Jazz Fest inc", lat: 40.7039, lng: -73.9052, borough: "Queens", emoji: "🎷" },
+  { name: "Rockaway Film Festival", lat: 40.5835, lng: -73.8136, borough: "Queens", emoji: "🎬" },
+  { name: "Snug Harbor Cultural Center", lat: 40.6435, lng: -74.1021, borough: "Staten Island", emoji: "🌿" },
+  { name: "Society of Illustrators", lat: 40.7747, lng: -73.9607, borough: "Manhattan", emoji: "✏️" },
+  { name: "South Bronx Unite", lat: 40.8069, lng: -73.9279, borough: "Bronx", emoji: "✊" },
+  { name: "South Bronx United", lat: 40.8100, lng: -73.9200, borough: "Bronx", emoji: "⚽" },
+  { name: "Spanish Theatre Repertory Company", lat: 40.7411, lng: -73.9896, borough: "Manhattan", emoji: "🎭" },
+  { name: "Staten Island Children's Museum", lat: 40.6440, lng: -74.1025, borough: "Staten Island", emoji: "🧒" },
+  { name: "Staten Island Museum", lat: 40.6438, lng: -74.1018, borough: "Staten Island", emoji: "🏛️" },
+  { name: "Street Lab", lat: 40.7155, lng: -73.9860, borough: "Manhattan", emoji: "🧪" },
+  { name: "Studio Museum in Harlem", lat: 40.8077, lng: -73.9481, borough: "Manhattan", emoji: "🎨" },
+  { name: "Sundog Theatre", lat: 40.6432, lng: -74.1010, borough: "Staten Island", emoji: "🎭" },
+  { name: "Symphony Space", lat: 40.7984, lng: -73.9707, borough: "Manhattan", emoji: "🎼" },
+  { name: "Thalia Spanish Theatre", lat: 40.7231, lng: -73.8847, borough: "Queens", emoji: "🎭" },
+  { name: "The Afrikan Poetry Theatre", lat: 40.7050, lng: -73.8050, borough: "Queens", emoji: "📝" },
+  { name: "The Bronx Museum", lat: 40.8175, lng: -73.9252, borough: "Bronx", emoji: "🏛️" },
+  { name: "The Classical Theatre of Harlem", lat: 40.8090, lng: -73.9520, borough: "Manhattan", emoji: "🎭" },
+  { name: "The Clemente Soto Vélez Center", lat: 40.7143, lng: -73.9830, borough: "Manhattan", emoji: "🌟" },
+  { name: "The Green-Wood Cemetery", lat: 40.6550, lng: -73.9940, borough: "Brooklyn", emoji: "🌿" },
+  { name: "The Haitian Americans United For Progress", lat: 40.6900, lng: -73.9720, borough: "Brooklyn", emoji: "🌺" },
+  { name: "The Jazz Gallery", lat: 40.7230, lng: -73.9944, borough: "Manhattan", emoji: "🎷" },
+  { name: "The New York Historical Society", lat: 40.7791, lng: -73.9738, borough: "Manhattan", emoji: "📜" },
+  { name: "The New York Public Library", lat: 40.7532, lng: -73.9822, borough: "Manhattan", emoji: "📚" },
+  { name: "The Noble Maritime Collection", lat: 40.6430, lng: -74.1010, borough: "Staten Island", emoji: "⚓" },
+  { name: "The People's Forum", lat: 40.7543, lng: -73.9945, borough: "Manhattan", emoji: "🗣️" },
+  { name: "Uptown Night Market", lat: 40.8390, lng: -73.9390, borough: "Manhattan", emoji: "🌙" },
+  { name: "Washington Heights Multicultural Center", lat: 40.8420, lng: -73.9430, borough: "Manhattan", emoji: "🌍" },
+  { name: "Wave Hill", lat: 40.8967, lng: -73.9119, borough: "Bronx", emoji: "🌊" },
+  { name: "We Eat Here", lat: 40.6880, lng: -73.9420, borough: "Brooklyn", emoji: "🍽️" },
+  { name: "Welcome to Harlem", lat: 40.8100, lng: -73.9450, borough: "Manhattan", emoji: "👋" },
+  { name: "West Harlem Art Fund", lat: 40.8225, lng: -73.9532, borough: "Manhattan", emoji: "🎨" },
+  { name: "West Indian American Day Carnival Association", lat: 40.6636, lng: -73.9528, borough: "Brooklyn", emoji: "🎉" },
+  { name: "World Yoga Community", lat: 40.7200, lng: -74.0000, borough: "Manhattan", emoji: "🧘" },
+  { name: "651 ARTS", lat: 40.6870, lng: -73.9730, borough: "Brooklyn", emoji: "🎭" },
+  { name: "54 Below", lat: 40.7596, lng: -73.9873, borough: "Manhattan", emoji: "🎤" },
+];
+
+let map, markers = [], infoWindow, selectedInst = null, descCache = {}, mapInitialized = false;
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['list','map','detail'][i] === tab);
+  });
+  document.querySelectorAll('.view').forEach(v => {
+    v.style.display = 'none';
+    v.classList.remove('active');
+  });
+  const el = document.getElementById('view-' + tab);
+  el.style.display = 'flex';
+  el.classList.add('active');
+
+  if (tab === 'map' && !mapInitialized) {
+    initMap();
+    mapInitialized = true;
+  }
+}
+
+// ── List ───────────────────────────────────────────────────────────────────
+function filterList() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  const filtered = INSTITUTIONS.filter(i =>
+    i.name.toLowerCase().includes(q) || i.borough.toLowerCase().includes(q)
+  );
+  document.getElementById('countLabel').textContent = filtered.length + ' institutions';
+  renderList(filtered);
+  if (map) {
+    markers.forEach(m => {
+      m.setVisible(filtered.some(f => f.name === m.instName));
+    });
+  }
+}
+
+function renderList(list) {
+  const ul = document.getElementById('instList');
+  ul.innerHTML = '';
+  list.forEach(inst => {
+    const div = document.createElement('div');
+    div.className = 'inst-item' + (selectedInst?.name === inst.name ? ' active' : '');
+    div.innerHTML = `
+      <span class="inst-emoji">${inst.emoji}</span>
+      <div style="flex:1;min-width:0">
+        <div class="inst-name">${inst.name}</div>
+        <div class="inst-borough" style="color:${BOROUGH_COLORS[inst.borough]}">${inst.borough}</div>
+      </div>
+      <span class="inst-arrow">›</span>
+    `;
+    div.onclick = () => openDetail(inst);
+    ul.appendChild(div);
+  });
+}
+
+// ── Google Map ─────────────────────────────────────────────────────────────
+function initMap() {
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: 40.730, lng: -73.935 },
+    zoom: 11,
+    styles: [
+      { elementType: "geometry", stylers: [{ color: "#0f1923" }] },
+      { elementType: "labels.text.fill", stylers: [{ color: "#a8bfcf" }] },
+      { elementType: "labels.text.stroke", stylers: [{ color: "#0f1923" }] },
+      { featureType: "road", elementType: "geometry", stylers: [{ color: "#1c2a38" }] },
+      { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#1c3050" }] },
+      { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d1e2e" }] },
+      { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#0d2a18" }] },
+      { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+    ],
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+  });
+
+  infoWindow = new google.maps.InfoWindow();
+
+  INSTITUTIONS.forEach(inst => {
+    const color = BOROUGH_COLORS[inst.borough] || '#E8A020';
+    const marker = new google.maps.Marker({
+      position: { lat: inst.lat, lng: inst.lng },
+      map,
+      title: inst.name,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: color,
+        fillOpacity: 0.9,
+        strokeColor: '#ffffff',
+        strokeWeight: 1.5,
+      }
+    });
+    marker.instName = inst.name;
+    marker.addEventListener = marker.addListener;
+    marker.addListener('click', () => {
+      openDetail(inst);
+      switchTab('detail');
+    });
+    markers.push(marker);
+  });
+}
+
+// ── Detail ─────────────────────────────────────────────────────────────────
+async function openDetail(inst) {
+  selectedInst = inst;
+  switchTab('detail');
+
+  // Re-render list to show active state
+  filterList();
+
+  // Pan map if ready
+  if (map) {
+    map.panTo({ lat: inst.lat, lng: inst.lng });
+    map.setZoom(14);
+    markers.forEach(m => {
+      const color = BOROUGH_COLORS[inst.borough] || '#E8A020';
+      m.setIcon({
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: m.instName === inst.name ? 11 : 7,
+        fillColor: m.instName === inst.name ? '#ffffff' : (BOROUGH_COLORS[INSTITUTIONS.find(i=>i.name===m.instName)?.borough] || '#E8A020'),
+        fillOpacity: m.instName === inst.name ? 1 : 0.8,
+        strokeColor: m.instName === inst.name ? color : '#ffffff',
+        strokeWeight: m.instName === inst.name ? 3 : 1,
+      });
+    });
+  }
+
+  const color = BOROUGH_COLORS[inst.borough] || '#E8A020';
+  const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(inst.name + ' ' + inst.borough + ' New York')}`;
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="detail-hero" style="background:${color}22;border-bottom-color:${color}">
+      <div class="detail-emoji">${inst.emoji}</div>
+      <div class="detail-borough-label" style="color:${color}">${inst.borough}</div>
+      <div class="detail-title">${inst.name}</div>
+    </div>
+    <div class="detail-body">
+      <div id="descArea" class="loading"><div class="spinner"></div> Loading info…</div>
+      <a class="maps-link" href="${mapsUrl}" target="_blank">Open in Google Maps ↗</a>
+      <div class="more-section">
+        <div class="more-label">More in ${inst.borough}</div>
+        ${INSTITUTIONS.filter(i => i.borough === inst.borough && i.name !== inst.name).slice(0,5).map(i => `
+          <div class="more-item" onclick="openDetail(${JSON.stringify(i).replace(/"/g,'&quot;')})">
+            <span class="more-item-emoji">${i.emoji}</span>
+            <span class="more-item-name">${i.name}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  if (descCache[inst.name]) {
+    document.getElementById('descArea').innerHTML = `<p class="detail-desc">${descCache[inst.name]}</p>`;
+    return;
+  }
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: `Write a concise 3-sentence introduction to "${inst.name}" in ${inst.borough}, New York City. Include what it is, what it's known for, and why visitors should go. Be warm and informative. Return only the 3 sentences, no headers.` }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.find(b => b.type === 'text')?.text || 'No information available.';
+    descCache[inst.name] = text;
+    const el = document.getElementById('descArea');
+    if (el) el.innerHTML = `<p class="detail-desc">${text}</p>`;
+  } catch {
+    const el = document.getElementById('descArea');
+    if (el) el.innerHTML = `<p class="detail-desc" style="color:#5a7a99">Could not load description. Check your internet connection.</p>`;
+  }
+}
+
+// Init list on load
+window.onload = () => {
+  document.getElementById('countLabel').textContent = INSTITUTIONS.length + ' institutions';
+  renderList(INSTITUTIONS);
+};
+</script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&libraries=places" async defer></script>
+
+</body>
+</html>
