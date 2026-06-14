@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NYC Culture Map</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+body{
+  margin:0;
+  font-family:system-ui,sans-serif;
+  display:flex;
+  height:100vh;
+}
+#sidebar{
+  width:350px;
+  overflow:auto;
+  border-right:1px solid #ddd;
+}
+#search{
+  width:calc(100% - 24px);
+  margin:12px;
+  padding:10px;
+}
+.item{
+  padding:12px;
+  cursor:pointer;
+  border-bottom:1px solid #eee;
+}
+.item:hover{
+  background:#f5f5f5;
+}
+#map{
+  flex:1;
+}
+#detail{
+  padding:12px;
+  border-top:1px solid #ddd;
+  background:#fafafa;
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+  <input id="search" placeholder="Search institutions...">
+  <div id="list"></div>
+  <div id="detail">Select an institution.</div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="institutions.js"></script>
+
+<script>
+const map = L.map('map').setView([40.73,-73.935],11);
+
+L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+ attribution:'© OpenStreetMap contributors'
+}
+).addTo(map);
+
+const markers=[];
+
+function showDetail(inst){
+  document.getElementById('detail').innerHTML=`
+    <h3>${inst.emoji || ''} ${inst.name}</h3>
+    <p><b>${inst.borough}</b></p>
+    <p>${inst.description || 'Description coming soon.'}</p>
+    <p>
+      <a target="_blank"
+      href="https://www.openstreetmap.org/?mlat=${inst.lat}&mlon=${inst.lng}&zoom=16">
+      Open in map
+      </a>
+    </p>
+  `;
+}
+
+function render(list){
+
+  const container=document.getElementById('list');
+  container.innerHTML='';
+
+  list.forEach(inst=>{
+
+    const div=document.createElement('div');
+    div.className='item';
+    div.innerHTML=`${inst.emoji || ''} ${inst.name}<br><small>${inst.borough}</small>`;
+
+    div.onclick=()=>{
+      map.setView([inst.lat,inst.lng],14);
+      showDetail(inst);
+    };
+
+    container.appendChild(div);
+  });
+}
+
+INSTITUTIONS.forEach(inst=>{
+  const marker=L.circleMarker(
+    [inst.lat,inst.lng],
+    {
+      radius:7
+    }
+  ).addTo(map);
+
+  marker.on('click',()=>showDetail(inst));
+
+  markers.push({marker,inst});
+});
+
+render(INSTITUTIONS);
+
+document.getElementById('search').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase();
+
+  const filtered=INSTITUTIONS.filter(i=>
+    i.name.toLowerCase().includes(q) ||
+    i.borough.toLowerCase().includes(q)
+  );
+
+  render(filtered);
+});
+</script>
+
+</body>
+</html>
